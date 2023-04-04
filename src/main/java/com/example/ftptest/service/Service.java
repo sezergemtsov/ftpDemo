@@ -12,44 +12,42 @@ import java.util.List;
 @org.springframework.stereotype.Service
 public class Service {
 
-    private String ftpPath = null;
+    private List<String> ftpPath = null;
 
-    public List<RespondEntity> searchFile(DefaultFtpSessionFactory sessionFactory) throws IOException {
+    public List<RespondEntity> searchFile(DefaultFtpSessionFactory sessionFactory, String searchingDir) throws IOException {
 
-        findFolder("", sessionFactory);
-        List<RespondEntity> respond = new ArrayList<>();
-        if (ftpPath != null) {
-            FTPFile[] str = sessionFactory.getSession().getClientInstance().mlistDir(ftpPath);
-            if (str.length != 0) {
-                for (FTPFile ftpFile : str) {
-                    if (ftpFile.getName().startsWith("GRP327_")) {
-                        respond.add(new RespondEntity(ftpFile.getName(), ftpFile.getTimestamp().getTime().toString(), ftpFile.getSize(), ftpPath));
+        ftpPath = new ArrayList<>();
+        findDir("", sessionFactory, searchingDir);
+
+        List<RespondEntity> response = new ArrayList<>();
+
+        for (String path : ftpPath) {
+            FTPFile[] files = sessionFactory.getSession().getClientInstance().mlistDir(path);
+            if (files.length != 0) {
+                for (FTPFile f : files) {
+                    if (f.isFile() & f.getName().startsWith("GRP327_")) {
+                        response.add(new RespondEntity(f.getName(), f.getTimestamp().getTime().toString(), f.getSize(), path));
                     }
                 }
             }
         }
-        ftpPath = null;
-        return respond;
+        return response;
     }
 
-    private void findFolder(String folderName,
-                            DefaultFtpSessionFactory sessionFactory) throws IOException {
-        if (folderName.contains("Ñ\u0084Ð¾Ñ\u0082Ð¾Ð³Ñ\u0080Ð°Ñ\u0084Ð¸Ð¸")) {
-            ftpPath = folderName;
+    private void findDir(String path, DefaultFtpSessionFactory sessionFactory, String searchingDir) throws IOException {
+        if (path.contains(searchingDir)) {
+            ftpPath.add(path);
         } else {
-            String[] str = sessionFactory.getSession().listNames(folderName);
-            if (str.length != 0) {
-                for (String s : str) {
-                    if (!s.startsWith(".") & !s.contains(".jpg")) {
-                        String builder = folderName +
-                                "/" +
-                                s;
-                        findFolder(builder, sessionFactory);
-                    }
+            FTPFile[] files = sessionFactory.getSession().getClientInstance().mlistDir(path);
+            for (FTPFile f : files) {
+                if (f.isDirectory() & !f.getName().startsWith(".")) {
+                    String newPath = path + "/" + f.getName();
+                    findDir(newPath, sessionFactory, searchingDir);
                 }
             }
         }
     }
+
 
     @Bean
     public DefaultFtpSessionFactory getSessionFactory() {
@@ -58,6 +56,7 @@ public class Service {
         sessionFactory.setPassword("CLc195rPV8h3cv");
         sessionFactory.setPort(21);
         sessionFactory.setHost("185.27.134.11");
+        sessionFactory.setControlEncoding("UTF8");
         return sessionFactory;
     }
 
